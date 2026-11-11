@@ -158,14 +158,18 @@ app.use((error, _req, res, _next) => {
   return res.status(400).json({ message: "Invalid request." });
 });
 
-mongoose
-  .connect(mongoUri)
-  .then(() => {
-    app.listen(port, () => {
-      console.log(`Bulk Mail API listening on port ${port}`);
+if (require.main === module) {
+  mongoose
+    .connect(mongoUri)
+    .then(() => {
+      app.listen(port, () => {
+        console.log(`Bulk Mail API listening on port ${port}`);
+      });
+    })
+    .catch((error) => {
+      console.error(`Could not connect to MongoDB at ${mongoUri}:`, error.message);
+      process.exitCode = 1;
     });
-  })
-  .catch((error) => {
-    console.error(`Could not connect to MongoDB at ${mongoUri}:`, error.message);
-    process.exitCode = 1;
-  });
+}
+
+module.exports = app;
