@@ -39,3 +39,13 @@ A React and Express bulk email app with MongoDB campaign history. Recipients are
 The send endpoint accepts `{ "subject": "...", "body": "...", "recipients": "a@example.com, b@example.com" }`. It accepts up to 100 unique email addresses per request.
 
 The history and send endpoints require HTTP Basic authentication using the admin credentials. The frontend keeps the credentials in memory only; use HTTPS when exposing the app outside localhost.
+
+## Deploying with Vercel and Render
+
+1. Create a MongoDB Atlas database and allow connections from your Render service. Use a dedicated database user and keep its connection string private.
+2. In Render, create a Blueprint from this repository and use `render.yaml`. Set `MONGODB_URI`, `ADMIN_PASS`, `EMAIL_USER`, and `EMAIL_PASS` as private environment values. Use a strong, unique admin password and a Gmail App Password; never use your regular Gmail password.
+3. After the Render API is deployed, copy its service URL, such as `https://bulkmail-api.onrender.com`.
+4. In Vercel, import this repository and set the project root directory to `frontend`. Add the `VITE_API_URL` environment variable with the Render URL followed by `/api`, for example `https://bulkmail-api.onrender.com/api`.
+5. After Vercel deploys, set Render's `CLIENT_ORIGIN` to the exact Vercel site origin, such as `https://bulkmail.vercel.app`, then redeploy the Render service.
+
+Keep all production credentials in the hosting providers' private environment-variable settings. Do not commit `.env` files or share secrets in chat.
