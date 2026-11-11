@@ -45,7 +45,7 @@ The history and send endpoints require HTTP Basic authentication using the admin
 The repository is configured to deploy the React frontend and Express API together as one Vercel project. The API uses a Vercel serverless function; MongoDB and SMTP are external services.
 
 1. Create a MongoDB Atlas database and allow network access for the deployed Vercel function. Use a dedicated database user and keep its connection string private.
-2. In Vercel, import this GitHub repository and keep the project root directory at the repository root (do not set it to `frontend`, because that would exclude the API function).
+2. In Vercel, import this GitHub repository and keep the project root directory at the repository root (do not set it to `frontend`, because that would exclude the API function). If you change the root directory after an earlier deployment, redeploy the latest commit.
 3. Before deploying, add these environment variables in the Vercel project settings for Production: `MONGODB_URI`, `ADMIN_USER`, `ADMIN_PASS`, `EMAIL_USER`, and `EMAIL_PASS`. Set `EMAIL_SERVICE` to `gmail` if using Gmail. Use a strong, unique admin password and a Gmail App Password, never a regular Gmail password.
 4. Deploy the project. The frontend calls the same-origin `/api` routes, so no frontend API URL setting is needed.
 5. After deployment, open the Vercel-provided URL and sign in with `ADMIN_USER` and `ADMIN_PASS`.
