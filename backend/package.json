@@ -1,0 +1,21 @@
+{
+  "name": "bulkmail-backend",
+  "version": "1.0.0",
+  "description": "Express and MongoDB API for the Bulk Mail application",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.7",
+    "express": "^5.3.0",
+    "mongoose": "^8.9.5",
+    "nodemailer": "^10.4.0"
+  }
+}
