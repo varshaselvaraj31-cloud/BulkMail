@@ -167,7 +167,7 @@ if (require.main === module) {
       });
     })
     .catch((error) => {
-      console.error(`Could not connect to MongoDB at ${mongoUri}:`, error.message);
+      console.error("Could not connect to MongoDB:", error.message);
       process.exitCode = 1;
     });
 }
