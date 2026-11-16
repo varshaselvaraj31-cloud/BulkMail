@@ -149,20 +149,10 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-let transporter;
-function getTransporter() {
-  transporter ??= nodemailer.createTransport({
-    host: "smtp.resend.com",
-    port: 465,
-    secure: true,
-    auth: {
-      user: "resend",
-      pass: process.env.RESEND_API_KEY,
-    },
-  });
-  return transporter;
-}
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
 
+ 
 
 // ---------------------------------------------------------------------------
 // Routes
@@ -244,13 +234,14 @@ app.post("/api/emails", requireAdmin, requireDatabase, async (req, res) => {
   }
 
   try {
-    const info = await getTransporter().sendMail({
-      from: { name: "BulkMail", address: "onboarding@resend.dev" },
-      to: process.env.EMAIL_USER,
-      bcc: recipients,
-      subject,
-      text: body,
-    });
+    const { data: info, error: sendError } = await resend.emails.send({
+  from: "BulkMail <onboarding@resend.dev>",
+  to: process.env.EMAIL_USER,
+  bcc: recipients,
+  subject,
+  text: body,
+});
+if (sendError) throw new Error(sendError.message);
 
     record.status = "sent";
     record.messageId = info.messageId;
