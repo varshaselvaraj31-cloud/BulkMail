@@ -170,12 +170,12 @@ app.get("/", (_req, res) => {
 
 // Liveness: always 200 while the process runs, with enough detail to debug a
 // deployment from the browser without reading logs.
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     uptimeSeconds: Math.round(process.uptime()),
     database: databaseStatus(),
-    databaseError: lastDatabaseError,
+    databaseError: req.databaseConnectionError || lastDatabaseError,
     mailConfigured: Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS),
     adminConfigured: Boolean(process.env.ADMIN_USER && process.env.ADMIN_PASS),
     allowedOrigins,
