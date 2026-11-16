@@ -14,10 +14,17 @@ function formatDate(value) {
 }
 
 async function request(path, options) {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...options?.headers },
-  });
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...options?.headers },
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach the API at ${API_URL}. Make sure the backend is running and that its CLIENT_ORIGIN setting includes ${window.location.origin}.`,
+    );
+  }
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(result.message || "The request could not be completed.");
@@ -32,7 +39,7 @@ function App() {
   const [loggingIn, setLoggingIn] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [recipients, setRecipients] = useState("akashsps.001@gmail.com");
+  const [recipients, setRecipients] = useState("");
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [sending, setSending] = useState(false);
