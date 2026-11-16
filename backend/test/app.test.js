@@ -66,6 +66,7 @@ test("root and health respond without a database", async () => {
   assert.equal(health.status, 200);
   assert.equal(health.json.status, "ok");
   assert.equal(health.json.database, "not configured");
+  assert.equal(health.json.databaseError, null);
   assert.equal(health.json.adminConfigured, true);
   assert.deepEqual(health.json.allowedOrigins, ["https://frontend.example.com", "https://bulk-mail-*.example.app"]);
 

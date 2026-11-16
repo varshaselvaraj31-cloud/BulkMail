@@ -80,6 +80,14 @@ app.use(express.json({ limit: "1mb" }));
 
 const readyStates = { 0: "disconnected", 1: "connected", 2: "connecting", 3: "disconnecting" };
 
+// Last failed connection attempt, shown in /api/health so a misconfigured
+// deployment can be diagnosed from the browser. Credentials are stripped.
+let lastDatabaseError = null;
+
+function sanitizeErrorMessage(message) {
+  return String(message || "").replace(/\/\/[^@\s/]+@/g, "//<credentials>@");
+}
+
 function databaseStatus() {
   if (!mongoUri) return "not configured";
   return readyStates[mongoose.connection.readyState] || "unknown";
@@ -167,6 +175,7 @@ app.get("/api/health", (_req, res) => {
     status: "ok",
     uptimeSeconds: Math.round(process.uptime()),
     database: databaseStatus(),
+    databaseError: lastDatabaseError,
     mailConfigured: Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS),
     adminConfigured: Boolean(process.env.ADMIN_USER && process.env.ADMIN_PASS),
     allowedOrigins,
@@ -308,12 +317,15 @@ async function connectDatabase() {
   for (let attempt = 1; ; attempt += 1) {
     try {
       await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
+      lastDatabaseError = null;
       console.log(`MongoDB connected to ${describeMongoHost(mongoUri)}.`);
       return;
     } catch (error) {
       const delaySeconds = Math.min(30, 5 * attempt);
-      console.error(`MongoDB connection attempt ${attempt} failed: ${error.message}`);
+      const message = sanitizeErrorMessage(error.message);
       const hint = explainMongoError(error);
+      lastDatabaseError = { attempt, message, hint: hint || undefined, at: new Date().toISOString() };
+      console.error(`MongoDB connection attempt ${attempt} failed: ${message}`);
       if (hint) {
         console.error(`Hint: ${hint}`);
       }
