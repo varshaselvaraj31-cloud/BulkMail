@@ -149,8 +149,40 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-const { Resend } = require("resend");
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resendClient;
+function getResendClient() {
+  if (!process.env.RESEND_API_KEY) return null;
+  if (!resendClient) {
+    const { Resend } = require("resend");
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+}
+
+let smtpTransporter;
+function getSmtpTransporter() {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) return null;
+  smtpTransporter ??= nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+  return smtpTransporter;
+}
+
+function isMailConfigured() {
+  return Boolean(process.env.RESEND_API_KEY || (process.env.EMAIL_USER && process.env.EMAIL_PASS));
+}
+
+function getMailProvider() {
+  if (process.env.RESEND_API_KEY) return "resend";
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) return "nodemailer";
+  return "none";
+}
 
  
 
@@ -169,7 +201,8 @@ app.get("/api/health", (req, res) => {
     uptimeSeconds: Math.round(process.uptime()),
     database: databaseStatus(),
     databaseError: req.databaseConnectionError || lastDatabaseError,
-    mailConfigured: Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS),
+    mailConfigured: isMailConfigured(),
+    mailProvider: getMailProvider(),
     adminConfigured: Boolean(process.env.ADMIN_USER && process.env.ADMIN_PASS),
     allowedOrigins,
   });
@@ -221,8 +254,11 @@ app.post("/api/emails", requireAdmin, requireDatabase, async (req, res) => {
   if (recipients.some((email) => !isValidEmail(email))) {
     return res.status(400).json({ message: "One or more recipient email addresses are invalid." });
   }
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    return res.status(503).json({ message: "Email delivery is not configured. Set EMAIL_USER and EMAIL_PASS on the backend." });
+  if (!isMailConfigured()) {
+    return res.status(503).json({
+      message:
+        "Email delivery is not configured. On Vercel, set RESEND_API_KEY. On Render/localhost, set EMAIL_USER and EMAIL_PASS.",
+    });
   }
 
   let record;
@@ -234,26 +270,48 @@ app.post("/api/emails", requireAdmin, requireDatabase, async (req, res) => {
   }
 
   try {
-    const { data: info, error: sendError } = await resend.emails.send({
-  from: "BulkMail <onboarding@resend.dev>",
-  to: process.env.EMAIL_USER,
-  bcc: recipients,
-  subject,
-  text: body,
-});
-if (sendError) throw new Error(sendError.message);
+    let messageId;
+    if (process.env.RESEND_API_KEY) {
+      const resend = getResendClient();
+      const fromAddress = process.env.EMAIL_FROM || "BulkMail <onboarding@resend.dev>";
+      const { data: info, error: sendError } = await resend.emails.send({
+        from: fromAddress,
+        to: process.env.EMAIL_USER || recipients[0],
+        bcc: recipients,
+        subject,
+        text: body,
+      });
+      if (sendError) throw new Error(sendError.message);
+      messageId = info?.id;
+    } else {
+      const transporter = getSmtpTransporter();
+      const info = await transporter.sendMail({
+        from: { name: "BulkMail", address: process.env.EMAIL_USER },
+        to: process.env.EMAIL_USER,
+        bcc: recipients,
+        subject,
+        text: body,
+      });
+      messageId = info.messageId;
+    }
 
     record.status = "sent";
-    record.messageId = info.messageId;
+    record.messageId = messageId;
     record.sentAt = new Date();
     await record.save();
-    return res.status(201).json({ message: `Email sent to ${recipients.length} recipient${recipients.length === 1 ? "" : "s"}.`, email: record });
+    return res.status(201).json({
+      message: `Email sent to ${recipients.length} recipient${recipients.length === 1 ? "" : "s"}.`,
+      email: record,
+    });
   } catch (error) {
     console.error("Email delivery failed:", error);
     record.status = "failed";
     record.error = error.message || "Email delivery failed.";
     await record.save();
-    return res.status(502).json({ message: "Email delivery failed. Check the backend mail configuration and try again.", email: record });
+    return res.status(502).json({
+      message: error.message ? `Email delivery failed: ${error.message}` : "Email delivery failed. Check mail configuration and try again.",
+      email: record,
+    });
   }
 });
 
