@@ -276,8 +276,7 @@ app.post("/api/emails", requireAdmin, requireDatabase, async (req, res) => {
       const fromAddress = process.env.EMAIL_FROM || "BulkMail <onboarding@resend.dev>";
       const { data: info, error: sendError } = await resend.emails.send({
         from: fromAddress,
-        to: process.env.EMAIL_USER || recipients[0],
-        bcc: recipients,
+        to: recipients,
         subject,
         text: body,
       });
@@ -285,14 +284,25 @@ app.post("/api/emails", requireAdmin, requireDatabase, async (req, res) => {
       messageId = info?.id;
     } else {
       const transporter = getSmtpTransporter();
-      const info = await transporter.sendMail({
-        from: { name: "BulkMail", address: process.env.EMAIL_USER },
-        to: process.env.EMAIL_USER,
-        bcc: recipients,
-        subject,
-        text: body,
-      });
-      messageId = info.messageId;
+      const results = await Promise.allSettled(
+        recipients.map((recipient) =>
+          transporter.sendMail({
+            from: { name: "BulkMail", address: process.env.EMAIL_USER },
+            to: recipient,
+            subject,
+            text: body,
+          })
+        )
+      );
+
+      const successful = results.filter((r) => r.status === "fulfilled");
+      const failed = results.filter((r) => r.status === "rejected");
+
+      if (successful.length === 0 && failed.length > 0) {
+        throw new Error(failed[0].reason?.message || "Email delivery failed.");
+      }
+
+      messageId = successful[0]?.value?.messageId;
     }
 
     record.status = "sent";
