@@ -185,10 +185,15 @@ function getSmtpTransporter() {
 }
 
 function isMailConfigured() {
-  return Boolean(process.env.RESEND_API_KEY || (process.env.EMAIL_USER && process.env.EMAIL_PASS));
+  return Boolean(
+    process.env.BREVO_API_KEY ||
+      process.env.RESEND_API_KEY ||
+      (process.env.EMAIL_USER && process.env.EMAIL_PASS),
+  );
 }
 
 function getMailProvider() {
+  if (process.env.BREVO_API_KEY) return "brevo";
   if (process.env.RESEND_API_KEY) return "resend";
   if (process.env.EMAIL_USER && process.env.EMAIL_PASS) return "nodemailer";
   return "none";
@@ -267,7 +272,7 @@ app.post("/api/emails", requireAdmin, requireDatabase, async (req, res) => {
   if (!isMailConfigured()) {
     return res.status(503).json({
       message:
-        "Email delivery is not configured. On Vercel, set RESEND_API_KEY. On Render/localhost, set EMAIL_USER and EMAIL_PASS.",
+        "Email delivery is not configured. On Vercel, set BREVO_API_KEY (recommended) or RESEND_API_KEY. On Render, set EMAIL_USER and EMAIL_PASS.",
     });
   }
 
@@ -281,7 +286,29 @@ app.post("/api/emails", requireAdmin, requireDatabase, async (req, res) => {
 
   try {
     let messageId;
-    if (process.env.RESEND_API_KEY) {
+    if (process.env.BREVO_API_KEY) {
+      const senderEmail = process.env.EMAIL_USER || "varshaselvaraj31@gmail.com";
+      const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "api-key": process.env.BREVO_API_KEY,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: "BulkMail", email: senderEmail },
+          to: recipients.map((email) => ({ email })),
+          subject,
+          textContent: body,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.message || `Brevo error: ${response.statusText}`);
+      }
+      messageId = data.messageId;
+    } else if (process.env.RESEND_API_KEY) {
       const resend = getResendClient();
       const fromAddress = process.env.EMAIL_FROM || "BulkMail <onboarding@resend.dev>";
       const { data: info, error: sendError } = await resend.emails.send({
