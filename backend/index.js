@@ -93,15 +93,21 @@ function databaseStatus() {
   return readyStates[mongoose.connection.readyState] || "unknown";
 }
 
-function requireDatabase(_req, res, next) {
+async function requireDatabase(_req, res, next) {
   if (mongoose.connection.readyState === 1) {
     return next();
   }
-  const message =
-    databaseStatus() === "not configured"
-      ? "Database is not configured. Set MONGODB_URI on the backend."
-      : "Database is not available yet. Try again in a moment.";
-  return res.status(503).json({ message });
+  if (!mongoUri) {
+    return res.status(503).json({
+      message: "Database is not configured. Set MONGODB_URI on the backend.",
+    });
+  }
+  try {
+    await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
+    return next();
+  } catch {
+    return res.status(503).json({ message: "Database is not available yet. Try again in a moment." });
+  }
 }
 
 function matchesCredential(candidate, expected) {
@@ -436,4 +442,5 @@ if (require.main === module) {
   startServer();
 }
 
+app.mongoose = mongoose;
 module.exports = app;

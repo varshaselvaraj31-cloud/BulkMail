@@ -30,6 +30,9 @@ module.exports = async function handler(req, res) {
 
     try {
       await connectionPromise;
+      if (app.mongoose && app.mongoose !== mongoose && app.mongoose.connection.readyState !== 1) {
+        await app.mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
+      }
     } catch (error) {
       const message = sanitizeErrorMessage(error.message);
       console.error("Could not connect to MongoDB:", message);
